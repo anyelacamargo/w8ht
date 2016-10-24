@@ -2,7 +2,7 @@
 # This script prepares data for QTL mapping
 rm(list=ls()); # Delete files
 cat("\014");
-setwd("M:/anyela/repo/w8");
+setwd("M:/anyela/repo/w8ht");
 source('../senescence_disease/generic.R')
 
 
@@ -54,11 +54,10 @@ createQTLTable = function(mapdata)
 return(qtlfull);
 }
 
+# Get genetic map
 get_MAGIC = function(mapfile)
 {
-  #phenodata
   f = list()
-  # map
   f$map_raw = read.table(mapfile, sep=',', header=TRUE);
   return(f);
 }
@@ -86,9 +85,32 @@ plotManhattan = function(traitlist)
 }
 
 
+plotTraitbyDate = function(data)
+{
+  copydata = t;
+  copydata = data.frame(copydata, DAS = sapply(t$phenotype, function(x) strsplit(as.character(x), '_')[[1]][2]));  
+  copydata = data.frame(copydata, trait = sapply(t$phenotype, function(x) strsplit(as.character(x), '_')[[1]][1]));
+  y = count(copydata, c('DAS', 'trait', 'Chr'))
+  y$DAS = as.numeric(as.character(y$DAS));
+  y$freq = factor(y$freq);
+  colnames(y)[4] = 'QTLperChr';
+  y = y[order(y$DAS),];
+  y <- resetlevels(y, 'DAS');
+  
+  
+  p <- ggplot(y, aes(Chr, DAS))+ 
+    geom_point(aes(size = QTLperChr, colour = QTLperChr)) + facet_grid(. ~ trait)
+  return(p);
+}
+
 f = get_MAGIC('../senescence_disease/wheat_geno_coordinates.csv'); 
 break();
 t = createQTLTable(f$map_raw);
+
 write.table(t[,c(2,1,9,10,7,8,12:19)], file='qtltable.csv', sep=',', row.names = F);
+
+tiff(paste('QTLbyDay', '.tiff', sep=''),  width = 2080, height = 1080,res=200);
+plotTraitbyDate(t);
+dev.off();
 
 plotManhattan(c('Area', 'Height', 'YFL'))
