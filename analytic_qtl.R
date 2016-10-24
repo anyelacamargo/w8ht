@@ -62,7 +62,8 @@ get_MAGIC = function(mapfile)
   return(f);
 }
 
-
+# This function creates manhattan plots per trait. The name of the chromosome can be customised 
+# traitlist = list of traits to search QTL 
 plotManhattan = function(traitlist)
 {
   filelist = stackFiles('scan');
@@ -84,7 +85,9 @@ plotManhattan = function(traitlist)
   }
 }
 
-
+# This function takes the table from createQTLTable and creates a frequency table according to 
+# identify QTLs per chromosome, date and trait
+# Returns a plot
 plotTraitbyDate = function(data)
 {
   copydata = t;
@@ -104,13 +107,15 @@ plotTraitbyDate = function(data)
 }
 
 f = get_MAGIC('../senescence_disease/wheat_geno_coordinates.csv'); 
-break();
 t = createQTLTable(f$map_raw);
 
+# Write table
 write.table(t[,c(2,1,9,10,7,8,12:19)], file='qtltable.csv', sep=',', row.names = F);
 
+# Write plot
 tiff(paste('QTLbyDay', '.tiff', sep=''),  width = 2080, height = 1080,res=200);
 plotTraitbyDate(t);
 dev.off();
 
+# Write manhattans
 plotManhattan(c('Area', 'Height', 'YFL'))
