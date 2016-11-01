@@ -2,9 +2,11 @@
 # This script prepares data for QTL mapping
 rm(list=ls()); # Delete files
 cat("\014");
-setwd("M:/anyela/repo/w8");
+setwd("M:/anyela/repo/w8ht");
+library(nlme)
 #ibrary('mpMap')
-library(rrBLUP)
+#library(rrBLUP)
+
 source('../senescence_disease/generic.R')
 
 #Find parents in pedigree table
@@ -83,9 +85,9 @@ plotLongAverage = function(data, traitpheno, traittime, fillname, lgroup)
  
   copydata = data;
   p = ggplot(data = copydata,
-              aes_string(y = traitpheno, x = tname, group = 'genogroup')) +
+              aes_string(y = traitpheno, x = traittime, group = 'genogroup')) +
     scale_colour_manual(values = unique(lgroup$cd)) +
-    labs(x = tname, y = traitpheno) +
+    labs(x = traittime, y = traitpheno) +
     theme(legend.key = element_rect(colour = 'transparent', fill = 'transparent')) +
     #stat_summary(fun.y=mean, geom="line", size=0.8) + 
     geom_smooth(aes(colour=genogroup), method='loess', size = 1.2) + 
@@ -96,6 +98,25 @@ plotLongAverage = function(data, traitpheno, traittime, fillname, lgroup)
   
 }
 
+plotGR = function(data, traitpheno, traittime, fillname, lgroup)
+{
+  
+  copydata = data;
+  p = ggplot(data = copydata,
+             aes_string(y = traitpheno, x = traittime, group = 'genogroup')) +
+    scale_colour_manual(values = unique(lgroup$cd)) +
+    labs(x = traittime, y = traitpheno) +
+    theme(legend.key = element_rect(colour = 'transparent', fill = 'transparent')) +
+    #stat_summary(fun.y=mean, geom="line", size=0.8) + 
+    #geom_smooth(aes(colour=genogroup), method='loess', size = 1.2) + 
+    geom_line() +
+    theme_bw(base_size = 15) + 
+    theme(panel.background = element_blank(),
+          axis.text.x = element_text(size=15)); # Face bold
+  p
+  return(p);
+  
+}
 
 WUECalculate = function(data, riltable, dp)
 {
@@ -131,8 +152,7 @@ selecDataPoint = function(data, ril, dplist, trait, traitred)
   }
   wholedata = merge(d$riltable, wholedata, by.x='genotype', 'genotype');
   colnames(wholedata)[2] = c('SUBJECT.NAME')
-  #, paste('Height', '_', dp, sep=''), paste('Area', '_', dp, sep=''), 
-  #                      paste('waterammount', '_', dp, sep=''));
+ 
     
   return(wholedata)
 }
@@ -246,20 +266,69 @@ loadData = function()
 
 exportTraitsforQTL = function(data)
 {
-  copydata = d;
-  for(i in seq(2,nrow(copydata$traittable), by=2))
+  for(i in seq(2,nrow(data$traittable), by=2))
   {
     
-    f = selecDataPoint(copydata$traitdata, copydata$riltable, 
-                       unique(copydata$traitdata$DAS)[seq(1, length(unique(copydata$traitdata$DAS)), by=4)],
-                       as.character(copydata$traittable$Ltrait[i]), as.character(copydata$traittable$Name[i]));
-    write.table(f[, -1], file=paste('w8_HTImg', copydata$traittable$Name[i], '.phenotype', sep=''), 
+    f = selecDataPoint(data$traitdata, data$riltable, 
+                       unique(data$traitdata$DAS)[seq(1, length(unique(data$traitdata$DAS)), by=4)],
+                       as.character(data$traittable$Ltrait[i]), as.character(data$traittable$Name[i]));
+    write.table(f[, -1], file=paste('w8_HTImg', data$traittable$Name[i], '.phenotype', sep=''), 
                 sep='\t', row.names = F, quote = F);
   }
 }
 
 
+exportTraitsforQTLRange = function(data, grdata, tname)
+{
+  
+  wholedata = merge(data$riltable, grdata, by.x='genotype', 'genotype');
+  head(wholedata)
+  colnames(wholedata)[2] = c('SUBJECT.NAME');
+  write.table(wholedata[, -1], file=paste(tname, '.phenotype', sep=''), 
+              sep='\t', row.names = F, quote = F);
+  
+}
+
+
+growthModelLogistic = function(data, genotype_list)
+{
+  library(lme4);
+  g = list();
+  pdf('logistic_curves.pdf');
+  par(mfrow = c(4,2));
+  for(ename in genotype_list)
+  {
+    sub = data[which(data[['genotype']] == ename),];
+    gr <- nls(log(Area.in.square.mm) ~ SSlogis(DAS, phi1, phi2, phi3), data = sub);
+    alpha <- coef(gr);  #extracting coefficients
+    g[[ename]] = alpha
+    #plot(log(Area.in.square.mm) ~ DAS, data = sub, main = ename, 
+    #   xlab = "DAS", ylab = paste("Area", '(log)', sep =''))  # Census data
+    #curve(alpha[1]/(1 + exp(-(x - alpha[2])/alpha[3])), add = T, col = "red", lwd=2)  # Fitted model
+    #text(170, min(log(sub$Area.in.square.mm))+1.5, paste('alpha: ', round(alpha[1],2), 
+    #                   '\n  xmid:', round(alpha[2],2), '\n',  ' scale:', round(alpha[3],2), sep=''),cex = 0.8);
+  
+    with(sub,plot(DAS, log(Area.in.square.mm), main = ename, 
+                  xlab = "DAS", ylab = paste("Area", '(log)', sep ='')))
+    with(sub,lines(DAS, predict(gr),col="red",lty=2,lwd=3));
+    text(170, min(log(sub$Area.in.square.mm))+1.5, paste('alpha: ', round(alpha[1],2), 
+                       '\n  xmid:', round(alpha[2],2), '\n',  ' scale:', round(alpha[3],2), sep=''),cex = 0.8);
+    
+  }
+  dev.off();
+  
+  g = t(data.frame(g));
+  g = data.frame(genotype=genotype_list,g, row.names=(1:nrow(g)));
+  return(g)
+  
+}
+
+
+
 d = loadData();
+gr = growthModelLogistic(d$traitdata, unique(d$traitdata$genotype));
+
+
 break();
 lgroup = createGroups(d$traitdata);
 # Plot data
